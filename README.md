@@ -8,9 +8,21 @@ The escalating size of neural networks demands efficiency improvements in deploy
 This will be a project that involves both implementation and experimentation. As a final deliverable we will 1) prodive needle quantization API,  2) implement the internals of quantization (fake or real quantization), and performance comparision between different data types in terms of the memory footprint and the accuracy.
 
 ## Quantiazation API
-```
-# TODO: a small code snippet to enable quantization
-# e.g. model = model.quantize(data_type="int8") for weight quantization
+```python
+from needle import quantization
+
+# case 1. quantizing weights only
+model = model.quantize(data_type="int8") # weight quantization
+
+# case 2. quantizing weights and activation
+def calibrate(model, dataloader):
+  for batch in dataloader:
+    _ = model(batch)  # internally gathers statistics
+  return model
+
+model = quantization.quantize(data_type="int8")
+model = quantization.insert_obserserver(model)
+model = calibrate(model)
 ```
 
 ## Internals: What quantization to support
@@ -19,7 +31,7 @@ We focus on supporting post-training quantization. It is a way of converting wei
 * Activation quantization: We also allow users to quantize activation as well. We will support two ways on how to calibrate activation: dynamic quantization and static quantization. The difference between the two schemes is on how to select the range of `float32`. Dynamic quantization selectcs the range on the fly at inference time whereas the static methods sets the range before the inference time using the sample data.
 
 
-# Experiments: what to measure
+# Experiments: What to measure
 
 We will analyze and measure the memory usage of different quantization techniques for both theoretical and empirical purposes in terms of memory footprint and accuracy. It is important to note that the use of fake quantization might be required depending on hardware support, resulting in similar empirical measurements across different data types. To assess accuracy, we compare model outputs obtained with different data types against a reference of 'float32'. The deviation from the reference output is used as a metric.
 
