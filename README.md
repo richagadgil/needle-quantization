@@ -12,7 +12,7 @@ This will be a project that involves both implementation and experimentation. As
 from needle import quantization
 
 # case 1. quantizing weights only
-model = model.quantize(data_type="int8") # weight quantization
+quantized_model = model.quantize(data_type="int8") # weight quantization
 
 # case 2. quantizing weights and activation
 def calibrate(model, dataloader):
@@ -20,9 +20,9 @@ def calibrate(model, dataloader):
     _ = model(batch)  # internally gathers statistics
   return model
 
-model = quantization.quantize(data_type="int8")
-model = quantization.insert_obserserver(model)
-model = calibrate(model)
+quantized_model = quantization.quantize(data_type="int8")
+quantized_model = quantization.insert_obserserver(model)
+quantized_model = calibrate(model)
 ```
 
 ## Internals: What quantization to support
