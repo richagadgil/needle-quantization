@@ -486,7 +486,7 @@ void EwiseMaximum(const AlignedArray& a, const AlignedArray& b, AlignedArray* ou
 
 void EwiseMaximumQuant(const AlignedArrayQuant& a, const AlignedArrayQuant& b, AlignedArrayQuant* out) {
   for (size_t i = 0; i < a.size; i++) {
-    out->ptr[i] = std::max(a.ptr[i], b.ptr[i]);
+    out->ptr[i] = std::max<quant_t>(a.ptr[i], b.ptr[i]);
   }
 }
 
@@ -499,7 +499,7 @@ void ScalarMaximum(const AlignedArray& a, scalar_t val, AlignedArray* out) {
 
 void ScalarMaximumQuant(const AlignedArrayQuant& a, scalar_t val, AlignedArrayQuant* out) {
   for (size_t i = 0; i < a.size; i++) {
-    out->ptr[i] = std::max(a.ptr[i], val);
+    out->ptr[i] = std::max<quant_t>(a.ptr[i], val);
   }
 }
 
