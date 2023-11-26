@@ -35,13 +35,13 @@ struct AlignedArray {
 };
 
 
-struct AlignedArrayQuant {
-  AlignedArrayQuant(const size_t size) {
+struct AlignedArray_quant {
+  AlignedArray_quant(const size_t size) {
     int ret = posix_memalign((void**)&ptr, ALIGNMENT, size * QUANT_SIZE);
     if (ret != 0) throw std::bad_alloc();
     this->size = size;
   }
-  ~AlignedArrayQuant() { free(ptr); }
+  ~AlignedArray_quant() { free(ptr); }
   size_t ptr_as_int() {return (size_t)ptr; }
   quant_t* ptr;
   size_t size;
@@ -58,7 +58,7 @@ void Fill(AlignedArray* out, scalar_t val) {
 }
 
 
-void FillQuant(AlignedArrayQuant* out, quant_t val) {
+void FillQuant(AlignedArray_quant* out, quant_t val) {
   /**
    * Fill the values of an aligned array with val
    */
@@ -127,7 +127,7 @@ void Compact(const AlignedArray& a, AlignedArray* out, std::vector<int32_t> shap
 }
 
 
-void CompactQuant(const AlignedArrayQuant& a, AlignedArrayQuant* out, std::vector<int32_t> shape,
+void CompactQuant(const AlignedArray_quant& a, AlignedArray_quant* out, std::vector<int32_t> shape,
              std::vector<int32_t> strides, size_t offset) {
   /**
    * Compact an array in memory
@@ -224,7 +224,7 @@ void EwiseSetitem(const AlignedArray& a, AlignedArray* out, std::vector<int32_t>
 }
 
 
-void EwiseSetitemQuant(const AlignedArrayQuant& a, AlignedArrayQuant* out, std::vector<int32_t> shape,
+void EwiseSetitemQuant(const AlignedArray_quant& a, AlignedArray_quant* out, std::vector<int32_t> shape,
                   std::vector<int32_t> strides, size_t offset) {
   /**
    * Set items in a (non-compact) array
@@ -319,7 +319,7 @@ void ScalarSetitem(const size_t size, scalar_t val, AlignedArray* out, std::vect
 }
 
 
-void ScalarSetitemQuant(const size_t size, scalar_t val, AlignedArrayQuant* out, std::vector<int32_t> shape,
+void ScalarSetitemQuant(const size_t size, scalar_t val, AlignedArray_quant* out, std::vector<int32_t> shape,
                    std::vector<int32_t> strides, size_t offset) {
   size_t num_dims = shape.size();
   std::vector<size_t> indices(num_dims, 0);
@@ -363,7 +363,7 @@ void EwiseAdd(const AlignedArray& a, const AlignedArray& b, AlignedArray* out) {
 }
 
 
-void EwiseAddQuant(const AlignedArrayQuant& a, const AlignedArrayQuant& b, AlignedArrayQuant* out) {
+void EwiseAddQuant(const AlignedArray_quant& a, const AlignedArray_quant& b, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = a.ptr[i] + b.ptr[i];
   }
@@ -380,7 +380,7 @@ void ScalarAdd(const AlignedArray& a, scalar_t val, AlignedArray* out) {
 }
 
 
-void ScalarAddQuant(const AlignedArrayQuant& a, scalar_t val, AlignedArrayQuant* out) {
+void ScalarAddQuant(const AlignedArray_quant& a, scalar_t val, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = a.ptr[i] + val;
   }
@@ -414,7 +414,7 @@ void EwiseMul(const AlignedArray& a, const AlignedArray& b, AlignedArray* out) {
 }
 
 
-void EwiseMulQuant(const AlignedArrayQuant& a, const AlignedArrayQuant& b, AlignedArrayQuant* out) {
+void EwiseMulQuant(const AlignedArray_quant& a, const AlignedArray_quant& b, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = a.ptr[i] * b.ptr[i];
   }
@@ -428,7 +428,7 @@ void ScalarMul(const AlignedArray& a, scalar_t val, AlignedArray* out) {
 }
 
 
-void ScalarMulQuant(const AlignedArrayQuant& a, scalar_t val, AlignedArrayQuant* out) {
+void ScalarMulQuant(const AlignedArray_quant& a, scalar_t val, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = a.ptr[i] * val;
   }
@@ -442,7 +442,7 @@ void EwiseDiv(const AlignedArray& a, const AlignedArray& b, AlignedArray* out) {
 }
 
 
-void EwiseDivQuant(const AlignedArrayQuant& a, const AlignedArrayQuant& b, AlignedArrayQuant* out) {
+void EwiseDivQuant(const AlignedArray_quant& a, const AlignedArray_quant& b, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = a.ptr[i] / b.ptr[i];
   }
@@ -456,7 +456,7 @@ void ScalarDiv(const AlignedArray& a, scalar_t val, AlignedArray* out) {
 }
 
 
-void ScalarDivQuant(const AlignedArrayQuant& a, scalar_t val, AlignedArrayQuant* out) {
+void ScalarDivQuant(const AlignedArray_quant& a, scalar_t val, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = a.ptr[i] / val;
   }
@@ -470,7 +470,7 @@ void ScalarPower(const AlignedArray& a, scalar_t val, AlignedArray* out) {
 }
 
 
-void ScalarPowerQuant(const AlignedArrayQuant& a, scalar_t val, AlignedArrayQuant* out) {
+void ScalarPowerQuant(const AlignedArray_quant& a, scalar_t val, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = std::pow(a.ptr[i], val);
   }
@@ -484,7 +484,7 @@ void EwiseMaximum(const AlignedArray& a, const AlignedArray& b, AlignedArray* ou
 }
 
 
-void EwiseMaximumQuant(const AlignedArrayQuant& a, const AlignedArrayQuant& b, AlignedArrayQuant* out) {
+void EwiseMaximumQuant(const AlignedArray_quant& a, const AlignedArray_quant& b, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = std::max<quant_t>(a.ptr[i], b.ptr[i]);
   }
@@ -497,7 +497,7 @@ void ScalarMaximum(const AlignedArray& a, scalar_t val, AlignedArray* out) {
   }
 }
 
-void ScalarMaximumQuant(const AlignedArrayQuant& a, scalar_t val, AlignedArrayQuant* out) {
+void ScalarMaximumQuant(const AlignedArray_quant& a, scalar_t val, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = std::max<quant_t>(a.ptr[i], val);
   }
@@ -511,7 +511,7 @@ void EwiseEq(const AlignedArray& a, const AlignedArray& b, AlignedArray* out) {
 }
 
 
-void EwiseEqQuant(const AlignedArrayQuant& a, const AlignedArrayQuant& b, AlignedArrayQuant* out) {
+void EwiseEqQuant(const AlignedArray_quant& a, const AlignedArray_quant& b, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = (a.ptr[i] == b.ptr[i]);
   }
@@ -525,7 +525,7 @@ void ScalarEq(const AlignedArray& a, scalar_t val, AlignedArray* out) {
 }
 
 
-void ScalarEqQuant(const AlignedArrayQuant& a, scalar_t val, AlignedArrayQuant* out) {
+void ScalarEqQuant(const AlignedArray_quant& a, scalar_t val, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = (a.ptr[i] == val);
   }
@@ -539,7 +539,7 @@ void EwiseGe(const AlignedArray& a, const AlignedArray& b, AlignedArray* out) {
 }
 
 
-void EwiseGeQuant(const AlignedArrayQuant& a, const AlignedArrayQuant& b, AlignedArrayQuant* out) {
+void EwiseGeQuant(const AlignedArray_quant& a, const AlignedArray_quant& b, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = (a.ptr[i] >= b.ptr[i]);
   }
@@ -552,7 +552,7 @@ void ScalarGe(const AlignedArray& a, scalar_t val, AlignedArray* out) {
   }
 }
 
-void ScalarGeQuant(const AlignedArrayQuant& a, scalar_t val, AlignedArrayQuant* out) {
+void ScalarGeQuant(const AlignedArray_quant& a, scalar_t val, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = (a.ptr[i] >= val);
   }
@@ -566,7 +566,7 @@ void EwiseLog(const AlignedArray& a,  AlignedArray* out) {
 }
 
 
-void EwiseLogQuant(const AlignedArrayQuant& a,  AlignedArrayQuant* out) {
+void EwiseLogQuant(const AlignedArray_quant& a,  AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = std::log(a.ptr[i]);
   }
@@ -580,7 +580,7 @@ void EwiseExp(const AlignedArray& a, AlignedArray* out) {
 }
 
 
-void EwiseExpQuant(const AlignedArrayQuant& a, AlignedArrayQuant* out) {
+void EwiseExpQuant(const AlignedArray_quant& a, AlignedArray_quant* out) {
 	for (size_t i = 0; i < a.size; i++) {
 		out->ptr[i] = std::exp(a.ptr[i]);
 	}
@@ -593,7 +593,7 @@ void EwiseTanh(const AlignedArray& a, AlignedArray* out) {
 }
 
 
-void EwiseTanhQuant(const AlignedArrayQuant& a, AlignedArrayQuant* out) {
+void EwiseTanhQuant(const AlignedArray_quant& a, AlignedArray_quant* out) {
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = std::tanh(a.ptr[i]);
   }
@@ -634,7 +634,7 @@ void Matmul(const AlignedArray& a, const AlignedArray& b, AlignedArray* out, uin
 }
 
 
-void MatmulQuant(const AlignedArrayQuant& a, const AlignedArrayQuant& b, AlignedArrayQuant* out,
+void MatmulQuant(const AlignedArray_quant& a, const AlignedArray_quant& b, AlignedArray_quant* out,
                  uint32_t m, uint32_t n, uint32_t p) {
   for (size_t i = 0; i < m; ++i) {
     for (size_t j = 0; j < p; ++j) {
@@ -756,8 +756,8 @@ void MatmulTiled(const AlignedArray& a, const AlignedArray& b, AlignedArray* out
 }
 
 
-void MatmulTiledQuant(const AlignedArrayQuant& a, const AlignedArrayQuant& b,
-                      AlignedArrayQuant* out, uint32_t m, uint32_t n, uint32_t p) {
+void MatmulTiledQuant(const AlignedArray_quant& a, const AlignedArray_quant& b,
+                      AlignedArray_quant* out, uint32_t m, uint32_t n, uint32_t p) {
   const size_t m_tiles = m / TILE;
   const size_t n_tiles = n / TILE;
   const size_t p_tiles = p / TILE;
@@ -806,7 +806,7 @@ void ReduceMax(const AlignedArray& a, AlignedArray* out, size_t reduce_size) {
 }
 
 
-void ReduceMaxQuant(const AlignedArrayQuant& a, AlignedArrayQuant* out, size_t reduce_size) {
+void ReduceMaxQuant(const AlignedArray_quant& a, AlignedArray_quant* out, size_t reduce_size) {
   for (size_t i = 0; i < a.size / reduce_size ; i++) {
     int8_t max = 0;
 
@@ -843,7 +843,7 @@ void ReduceSum(const AlignedArray& a, AlignedArray* out, size_t reduce_size) {
 }
 
 
-void ReduceSumQuant(const AlignedArrayQuant& a, AlignedArrayQuant* out, size_t reduce_size) {
+void ReduceSumQuant(const AlignedArray_quant& a, AlignedArray_quant* out, size_t reduce_size) {
   for (size_t i = 0; i < a.size / reduce_size ; i++) {
     int8_t sum = 0;
 
@@ -871,10 +871,10 @@ PYBIND11_MODULE(ndarray_backend_cpu, m) {
       .def("ptr", &AlignedArray::ptr_as_int)
       .def_readonly("size", &AlignedArray::size);
 
-  py::class_<AlignedArrayQuant>(m, "ArrayQuant")
+  py::class_<AlignedArray_quant>(m, "ArrayQuant")
     .def(py::init<size_t>(), py::return_value_policy::take_ownership)
-    .def("ptr", &AlignedArrayQuant::ptr_as_int)
-    .def_readonly("size", &AlignedArrayQuant::size);
+    .def("ptr", &AlignedArray_quant::ptr_as_int)
+    .def_readonly("size", &AlignedArray_quant::size);
 
   // return numpy array (with copying for simplicity, otherwise garbage
   // collection is a pain)
