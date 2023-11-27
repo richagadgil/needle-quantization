@@ -871,7 +871,7 @@ PYBIND11_MODULE(ndarray_backend_cpu, m) {
       .def("ptr", &AlignedArray::ptr_as_int)
       .def_readonly("size", &AlignedArray::size);
 
-  py::class_<AlignedArray_quant>(m, "ArrayQuant")
+  py::class_<AlignedArray_quant>(m, "Array_quant")
     .def(py::init<size_t>(), py::return_value_policy::take_ownership)
     .def("ptr", &AlignedArray_quant::ptr_as_int)
     .def_readonly("size", &AlignedArray_quant::size);
@@ -885,13 +885,23 @@ PYBIND11_MODULE(ndarray_backend_cpu, m) {
                    [](size_t& c) { return c * ELEM_SIZE; });
     return py::array_t<scalar_t>(shape, numpy_strides, a.ptr + offset);
   });
-  // TODO: check if int8 to_numpy is necessary
+
+  m.def("to_numpy_quant", [](const AlignedArray_quant& a, std::vector<size_t> shape,
+                       std::vector<size_t> strides, size_t offset) {
+    std::vector<size_t> numpy_strides = strides;
+    std::transform(numpy_strides.begin(), numpy_strides.end(), numpy_strides.begin(),
+                   [](size_t& c) { return c * QUANT_SIZE; });
+    return py::array_t<quant_t>(shape, numpy_strides, a.ptr + offset);
+  });
 
   // convert from numpy (with copying)
   m.def("from_numpy", [](py::array_t<scalar_t> a, AlignedArray* out) {
     std::memcpy(out->ptr, a.request().ptr, out->size * ELEM_SIZE);
   });
-  // TODO: check if int8 from_numpy is necessary
+
+  m.def("from_numpy_quant", [](py::array_t<scalar_t> a, AlignedArray_quant* out) {
+    std::memcpy(out->ptr, a.request().ptr, out->size * QUANT_SIZE);
+  });
 
   m.def("fill", Fill);
   m.def("fill_quant", FillQuant);

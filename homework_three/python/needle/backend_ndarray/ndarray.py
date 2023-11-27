@@ -2,6 +2,7 @@ import operator
 import math
 from functools import reduce
 import numpy as np
+
 from . import ndarray_backend_numpy
 from . import ndarray_backend_cpu
 
@@ -165,10 +166,10 @@ class NDArray:
     def device(self):
         return self._device
 
-    @property
-    def dtype(self):
-        # only support float32 for now
-        return self.dtype
+    # @property
+    # def dtype(self):
+    #     # only support float32 for now
+    #     return self.dtype
 
     @property
     def ndim(self):
