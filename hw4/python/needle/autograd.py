@@ -65,6 +65,7 @@ class Op:
     def gradient_as_tuple(self, out_grad: "Value", node: "Value") -> Tuple["Value"]:
         """Convenience method to always return a tuple from gradient call"""
         output = self.gradient(out_grad, node)
+
         if isinstance(output, tuple):
             return output
         elif isinstance(output, list):
@@ -380,9 +381,24 @@ def compute_gradient_of_variables(output_tensor, out_grad):
     # Traverse graph in reverse topological order given the output_node that we are taking gradient wrt.
     reverse_topo_order = list(reversed(find_topo_sort([output_tensor])))
 
+
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    for i in reverse_topo_order:
+      i.grad = sum_node_list(node_to_output_grads_list[i])
+
+      
+      if i.inputs:
+
+        k_gradients = i.op.gradient_as_tuple(i.grad, i)
+
+        for n, k in enumerate(i.inputs): 
+          grad = k_gradients[n]
+          if k not in node_to_output_grads_list:
+            node_to_output_grads_list[k] = [grad]
+          else:
+            node_to_output_grads_list[k].append(grad)
     ### END YOUR SOLUTION
+
 
 
 def find_topo_sort(node_list: List[Value]) -> List[Value]:
@@ -394,14 +410,27 @@ def find_topo_sort(node_list: List[Value]) -> List[Value]:
     sort.
     """
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    topo_order = []
+    visited = set()
+
+    for node in node_list:
+        if node not in visited:
+            topo_sort_dfs(node, visited, topo_order)
+
+    return topo_order
     ### END YOUR SOLUTION
 
 
 def topo_sort_dfs(node, visited, topo_order):
     """Post-order DFS"""
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    visited.add(node)
+
+    for neighbor in node.inputs:
+        if neighbor not in visited:
+            topo_sort_dfs(neighbor, visited, topo_order)
+
+    topo_order.append(node)
     ### END YOUR SOLUTION
 
 

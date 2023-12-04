@@ -135,7 +135,16 @@ class Sequential(Module):
 class SoftmaxLoss(Module):
     def forward(self, logits: Tensor, y: Tensor):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        batch_size = logits.shape[0] 
+        y_one_hot = init.one_hot(logits.shape[1], y)
+        z_y = ops.summation(ops.multiply(logits, y_one_hot), axes=1)
+
+
+        loss = ops.logsumexp(logits, axes=1) - z_y
+
+        average_loss = ops.divide_scalar(ops.summation(loss), batch_size)
+
+        return average_loss
         ### END YOUR SOLUTION
 
 
@@ -219,3 +228,5 @@ class Residual(Module):
         ### BEGIN YOUR SOLUTION
         return self.fn(x) + x
         ### END YOUR SOLUTION
+
+

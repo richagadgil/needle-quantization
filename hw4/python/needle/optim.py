@@ -24,9 +24,28 @@ class SGD(Optimizer):
         self.weight_decay = weight_decay
 
     def step(self):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        if self.momentum != 0:
+            for p in range(0, len(self.params)):
+                if self.weight_decay != 0:
+                    grad = (self.params[p].grad.detach().cached_data + self.weight_decay * self.params[p].detach().cached_data)
+                else:
+                    grad = self.params[p].grad.detach().cached_data
+                
+                if p not in self.u.keys():
+                    self.u[p] = (1 - self.momentum) * grad
+                else:
+                    self.u[p] = (self.momentum) * self.u[p] + (1 - self.momentum) * grad
+
+        for p in range(0, len(self.params)):
+            if self.momentum != 0:
+                grad = self.u[p]
+            else:
+                if self.weight_decay != 0:
+                    grad = self.params[p].grad.detach().cached_data + self.weight_decay * self.params[p].detach().cached_data
+                else:
+                    grad = self.params[p].grad.detach().cached_data
+
+            self.params[p].cached_data = self.params[p].cached_data - self.lr * grad
 
     def clip_grad_norm(self, max_norm=0.25):
         """
