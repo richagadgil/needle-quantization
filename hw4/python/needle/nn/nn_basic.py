@@ -82,7 +82,7 @@ class Identity(Module):
 
 class Linear(Module):
     def __init__(
-        self, in_features, out_features, bias=False, device=None, dtype="float32", quantization=True, quantization_profile="signed_eight", running_max=False
+        self, in_features, out_features, bias=True, device=None, dtype="float32", quantization_profile="signed_eight", running_max=False
     ):
         super().__init__()
         self.in_features = in_features
@@ -100,60 +100,109 @@ class Linear(Module):
         self.W_B = None
         self.W_A = None
 
+        self.X_A = None
+        self.X_B = None
+
+        self.y_A = None
+        self.y_B = None
+
+        self.b_A = None
+        self.b_B = None
+
         ### END YOUR SOLUTION
+
+    def generate_quantization_constants(self, alpha, beta):
+        beta_q = 127
+        alpha_q = -128
+
+        S = (beta - alpha) / (beta_q - alpha_q)
+        Z = int((beta * alpha_q - alpha * beta_q) / (beta - alpha))
+
+        return S, Z
+
+
+    def quantization(self, x, s, z):
+        beta_q = 127
+        alpha_q = -128
+
+        x_q = np.round(1 / s * x + z, decimals=0)
+        x_q = np.clip(x_q, a_min=alpha_q, a_max=beta_q)
+
+        return x_q.astype(np.int8)
+
+    def dequantization(self, x_q, s, z):
+
+        # x_q - z might go outside the quantization range.
+        x_q = x_q.astype(np.int32)
+        x = s * (x_q - z)
+        x = x.astype(np.float32)
+
+        return x
+
+
+    def quantization_matrix_multiplication_int8(self, X_q, W_q, b_q, s_X, z_X, s_W, z_W,
+                                            s_b, z_b, s_Y, z_Y):
+
+        p = W_q.shape[0]
+
+        # Y_q_simulated is FP32
+        Y_q_simulated = (z_Y + (s_b / s_Y * (b_q.astype(np.int32) - z_b)) + (
+            (s_X * s_W / s_Y) *
+            (np.matmul(X_q.astype(np.int32), W_q.astype(np.int32)) -
+            z_W * np.sum(X_q.astype(np.int32), axis=1, keepdims=True) - z_X *
+            np.sum(W_q.astype(np.int32), axis=0, keepdims=True) + p * z_X * z_W)))
+
+        Y_q_simulated = np.round(Y_q_simulated, decimals=0)
+        Y_q_simulated = np.clip(Y_q_simulated, a_min=-128, a_max=127)
+        Y_q_simulated = Y_q_simulated.astype(np.int8)
+
+        return Y_q_simulated
+
 
     def forward(self, X: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
 
         if self.quantize_input:
+          
+          s_X, z_X = self.generate_quantization_constants(self.X_A, self.X_B)
+          s_W, z_W = self.generate_quantization_constants(self.W_A, self.W_B)
+          s_Y, z_Y = self.generate_quantization_constants(self.y_A, self.y_B)
+          s_b, z_b = self.generate_quantization_constants(self.b_A, self.b_B)
 
-          B_q = 127
-          a_q = -128
+          X_q = self.quantization(X.detach().numpy(), s_X, z_X)
+          W_q = self.quantization(self.weight.detach().numpy(), s_W, z_W)
+          b_q = self.quantization(self.bias.detach().numpy(), s_b, z_b)
 
-          def affine_quantization(B, a, value):
+          y_q = self.quantization_matrix_multiplication_int8(X_q, W_q, b_q, s_X, z_X, s_W, z_W,
+                                            s_b, z_b, s_Y, z_Y)
 
-              S = (B - a) / (B_q - a_q)  # (B - a) / (B_q - A_q) 
-              zero_point = -np.round((a * B_q - B * a_q) / (B - a)) # (aB_q - Ba_q) / (B - a)
-              quantized_value = np.round(value / S + zero_point)  # round(r / S + Z)
-              quantized_value[quantized_value > B_q] = B_q
-              quantized_value[quantized_value < a_q] = a_q
-              return Tensor(quantized_value, device=ndl.cpu(), dtype='float32')
+          y = Tensor(self.dequantization(y_q, s_Y, z_Y), device=ndl.cpu(), dtype='float32')
 
-          # self.W_B = np.max(X.detach().numpy()) 
-          # self.W_A = np.min(X.detach().numpy()) 
+          
+        else:
+          
+          y = X @ self.weight
 
-          X = affine_quantization(self.W_B, self.W_A, X.detach().numpy())
-
-        y = X @ self.weight
-
-        if self.bias:
+          if self.bias:
             y = ops.add(y, ops.broadcast_to(self.bias, y.shape))
 
+          self.W_B = np.max(self.weight.detach().numpy()) 
+          self.W_A = np.min(self.weight.detach().numpy()) 
+
+          self.X_B = np.max(X.detach().numpy()) 
+          self.X_A = np.min(X.detach().numpy()) 
+
+          self.y_B = np.max(y.detach().numpy()) 
+          self.y_A = np.min(y.detach().numpy()) 
+
+          self.b_B = np.max(self.bias.detach().numpy()) 
+          self.b_A = np.min(self.bias.detach().numpy()) 
+            
         return y
 
     def quantize(self):
-        B_q = 127
-        a_q = -128
 
-        self.W_B = np.max(self.weight.detach().numpy()) 
-        self.W_A = np.min(self.weight.detach().numpy()) 
-        # B_B = np.max(self.bias.detach().numpy()) 
-        # B_a = np.min(self.bias.detach().numpy()) 
-
-
-        def affine_quantization(B, a, value):
-            S = (B - a) / (B_q - a_q)  # (B - a) / (B_q - A_q) 
-            zero_point = -np.round((a * B_q - B * a_q) / (B - a)) # (aB_q - Ba_q) / (B - a)
-            quantized_value = np.round(value / S + zero_point)  # round(r / S + Z)
-            quantized_value[quantized_value > B_q] = B_q
-            quantized_value[quantized_value < a_q] = a_q
-
-            return Tensor(quantized_value, device=ndl.cpu(), dtype='float32')
-
-        self.weight = affine_quantization(self.W_B, self.W_A, self.weight.detach().numpy())
-        # self.bias = affine_quantization(B_B, B_a, self.bias.detach().numpy())
-
-        self.quantize_input=True
+        self.quantize_input = True
 
 
 
