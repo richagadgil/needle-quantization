@@ -17,46 +17,6 @@ np.random.seed(0)
 MY_DEVICE = ndl.backend_selection.cuda()
 
 
-def ResidualBlock(dim, hidden_dim, norm=nn.BatchNorm1d, drop_prob=0.1):
-    block1 = nn.Sequential(
-        nn.Linear(dim, hidden_dim), 
-        norm(hidden_dim), 
-        nn.ReLU(), 
-        nn.Dropout(drop_prob), 
-        nn.Linear(hidden_dim, dim), 
-        norm(dim),
-    )
-
-    model = nn.Sequential(
-        nn.Residual(block1),
-        nn.ReLU()
-    )
-
-    return model
-
-
-def MLPResNet(
-    dim,
-    hidden_dim=100,
-    num_blocks=3,
-    num_classes=10,
-    norm=nn.BatchNorm1d,
-    drop_prob=0.1,
-):
-    ### BEGIN YOUR SOLUTION
-    # Initial layer to expand dimension from input dim to hidden_dim
-    layers = [nn.Linear(dim, hidden_dim), nn.ReLU()]
-
-    # Add residual blocks
-    for _ in range(num_blocks):
-        layers.append(ResidualBlock(hidden_dim, hidden_dim//2, norm, drop_prob))
-
-    # # Add final classification layer
-    layers.append(nn.Linear(hidden_dim, num_classes))
-
-    return nn.Sequential(*layers)
-    ### END YOUR SOLUTION
-
 def NN(
     dim,
     hidden_dim=100,
@@ -67,10 +27,13 @@ def NN(
 ):
     ### BEGIN YOUR SOLUTION
     layers =  nn.Sequential(
+        #nn.Linear(dim, hidden_dim, quantization=True, device=nd.cpu('int8'), dtype='int8'), 
         nn.Linear(dim, hidden_dim, quantization=True, device=nd.cpu()), 
         nn.ReLU(), 
+        #nn.Linear(hidden_dim, hidden_dim//2, quantization=True,  device=nd.cpu('int8'), dtype='int8'),
         nn.Linear(hidden_dim, hidden_dim//2, quantization=True,  device=nd.cpu()),
         nn.ReLU(),
+        #nn.Linear(hidden_dim//2, num_classes, quantization=True, device=nd.cpu('int8'), dtype='int8')
         nn.Linear(hidden_dim//2, num_classes, quantization=True, device=nd.cpu())
     )
 
@@ -106,6 +69,8 @@ def epoch(dataloader, model, opt=None):
 
         x = batch[0]
         y = batch[1]
+        #x = ndl.Tensor(nd.NDArray(x.numpy(), device = ndl.cpu('int8')), device = ndl.cpu('int8'), dtype='int8')
+        #y = ndl.Tensor(nd.NDArray(y.numpy(), device = ndl.cpu('int8')), device = ndl.cpu('int8'), dtype='int8')
 
         x = ndl.Tensor(nd.NDArray(x.numpy(), device = ndl.cpu()), device = ndl.cpu())
         y = ndl.Tensor(nd.NDArray(y.numpy(), device = ndl.cpu()), device = ndl.cpu())
@@ -120,8 +85,8 @@ def epoch(dataloader, model, opt=None):
         ####
 
         if opt:
-            loss.backward()
-            opt.step()
+          loss.backward()
+          opt.step()
 
         ##### CALCULATE ERROR RATE 
         check_values = np.argmax(out.numpy(), axis=1) != y.numpy()
@@ -129,9 +94,43 @@ def epoch(dataloader, model, opt=None):
         total_values += len(check_values)
         #####
 
-
-    return total_correct/total_values, loss_values/total_idx
+    # print(total_correct/total_values)
+    return total_correct/total_values, loss_values/total_idx, model
     ### END YOUR SOLUTION
+
+def get_quantized_model(model):
+    for module in model.modules:
+      if isinstance(module, nn.Linear):
+        module.quantize()
+    return model
+
+def test_quantization(dataloader, model):
+
+    quantized_model = get_quantized_model(model) # change this model to the quantized version 
+
+    quantized_model.eval()
+    # model.eval()
+
+    total_values = 0
+
+    # total_correct_regular = 0
+    total_correct_quantized = 0
+
+    for idx, batch in enumerate(dataloader):
+        x = batch[0]
+        y = batch[1]
+        x = ndl.Tensor(nd.NDArray(x.numpy(), device = ndl.cpu()), device = ndl.cpu())
+        y = ndl.Tensor(nd.NDArray(y.numpy(), device = ndl.cpu()), device = ndl.cpu())
+
+        out_quantized = quantized_model(x)
+
+        check_values = np.argmax(out_quantized.numpy(), axis=1) != y.numpy()
+        total_correct_quantized += np.sum(check_values) 
+        total_values += len(check_values)
+
+    print(total_correct_quantized/total_values)
+
+    return total_correct_quantized/total_values
 
 
 def train_mnist(
@@ -166,12 +165,29 @@ def train_mnist(
     opt = optimizer(model.parameters(), lr=lr, weight_decay=weight_decay)
 
 
+    training_error_rates = []
+    test_error_rates = []
+
+
     for i in range(0, epochs):
-        print(i)
-        training_error_rate, training_avg_loss = epoch(train_dataloader, model, opt)
-        test_error_rate, test_avg_loss = epoch(test_dataloader, model, None)
+        training_error_rate, training_avg_loss, model = epoch(train_dataloader, model, opt)
+        test_error_rate, test_avg_loss, model = epoch(test_dataloader, model, None)
+
+
+        training_error_rates.append(training_error_rate)
+        test_error_rates.append(test_error_rate)
 
         print(f"training_error_rate: {training_error_rate} \n training_avg_loss {training_avg_loss} \n test_error_rate {test_error_rate} \n test_avg_loss {test_avg_loss}")
+
+    ############### QUANTIZATION 
+
+    test_quantization(test_dataloader, model)
+
+    ############### QUANTIZATION 
+
+    print(training_error_rates)
+    print(test_error_rates)
+
 
     return training_error_rate, training_avg_loss, test_error_rate, test_avg_loss
 

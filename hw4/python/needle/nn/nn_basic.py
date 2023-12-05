@@ -5,6 +5,7 @@ from needle.autograd import Tensor
 from needle import ops
 import needle.init as init
 import numpy as np
+import needle as ndl
 
 
 class Parameter(Tensor):
@@ -81,11 +82,13 @@ class Identity(Module):
 
 class Linear(Module):
     def __init__(
-        self, in_features, out_features, bias=True, device=None, dtype="float32", quantization=True, quantization_profile="signed_eight", running_max=False
+        self, in_features, out_features, bias=False, device=None, dtype="float32", quantization=True, quantization_profile="signed_eight", running_max=False
     ):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
+
+        self.quantize_input=False
 
         ### BEGIN YOUR SOLUTION
         self.weight = Parameter(init.kaiming_uniform(self.in_features, self.out_features), dtype=dtype, device=device)
@@ -93,17 +96,65 @@ class Linear(Module):
           self.bias = Parameter(ops.transpose(init.kaiming_uniform(self.out_features, 1)),  dtype=dtype, device=device)
         else:
           self.bias = None
+
+        self.W_B = None
+        self.W_A = None
+
         ### END YOUR SOLUTION
 
     def forward(self, X: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
+
+        if self.quantize_input:
+
+          B_q = 127
+          a_q = -128
+
+          def affine_quantization(B, a, value):
+
+              S = (B - a) / (B_q - a_q)  # (B - a) / (B_q - A_q) 
+              zero_point = -np.round((a * B_q - B * a_q) / (B - a)) # (aB_q - Ba_q) / (B - a)
+              quantized_value = np.round(value / S + zero_point)  # round(r / S + Z)
+              quantized_value[quantized_value > B_q] = B_q
+              quantized_value[quantized_value < a_q] = a_q
+              return Tensor(quantized_value, device=ndl.cpu(), dtype='float32')
+
+          # self.W_B = np.max(X.detach().numpy()) 
+          # self.W_A = np.min(X.detach().numpy()) 
+
+          X = affine_quantization(self.W_B, self.W_A, X.detach().numpy())
+
         y = X @ self.weight
 
         if self.bias:
             y = ops.add(y, ops.broadcast_to(self.bias, y.shape))
 
         return y
-        ### END YOUR SOLUTION
+
+    def quantize(self):
+        B_q = 127
+        a_q = -128
+
+        self.W_B = np.max(self.weight.detach().numpy()) 
+        self.W_A = np.min(self.weight.detach().numpy()) 
+        # B_B = np.max(self.bias.detach().numpy()) 
+        # B_a = np.min(self.bias.detach().numpy()) 
+
+
+        def affine_quantization(B, a, value):
+            S = (B - a) / (B_q - a_q)  # (B - a) / (B_q - A_q) 
+            zero_point = -np.round((a * B_q - B * a_q) / (B - a)) # (aB_q - Ba_q) / (B - a)
+            quantized_value = np.round(value / S + zero_point)  # round(r / S + Z)
+            quantized_value[quantized_value > B_q] = B_q
+            quantized_value[quantized_value < a_q] = a_q
+
+            return Tensor(quantized_value, device=ndl.cpu(), dtype='float32')
+
+        self.weight = affine_quantization(self.W_B, self.W_A, self.weight.detach().numpy())
+        # self.bias = affine_quantization(B_B, B_a, self.bias.detach().numpy())
+
+        self.quantize_input=True
+
 
 
 class Flatten(Module):
@@ -192,7 +243,6 @@ class LayerNorm1d(Module):
 
         mean = broadcast_reshape(ops.summation(x, axes=(1, ))) / x.shape[1]
         var = broadcast_reshape(ops.summation((x - mean) ** 2, axes=(1, ))) / x.shape[1]
-
 
         bn = (x - mean) / (ops.power_scalar(var + self.eps, 0.5))
 
