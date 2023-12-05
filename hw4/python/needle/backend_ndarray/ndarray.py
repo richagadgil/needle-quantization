@@ -14,9 +14,10 @@ def prod(x):
 class BackendDevice:
     """A backend device, wrapps the implementation module."""
 
-    def __init__(self, name, mod):
+    def __init__(self, name, mod, quant=False):
         self.name = name
         self.mod = mod
+        self.quant = quant
 
     def __eq__(self, other):
         return self.name == other.name
@@ -25,6 +26,8 @@ class BackendDevice:
         return self.name + "()"
 
     def __getattr__(self, name):
+        if self.quant and "device_name" not in name and "tile_size" not in name:
+            name += "_quant"  # quant functions have _quant suffix in .cc
         return getattr(self.mod, name)
 
     def enabled(self):
@@ -45,12 +48,12 @@ class BackendDevice:
 
     def empty(self, shape, dtype="float32"):
         dtype = "float32" if dtype is None else dtype
-        assert dtype == "float32"
+        assert dtype in ("float32", "int8"), "dtype must be float32 or int8"
         return NDArray.make(shape, device=self)
 
     def full(self, shape, fill_value, dtype="float32"):
         dtype = "float32" if dtype is None else dtype
-        assert dtype == "float32"
+        assert dtype in ("float32", "int8"), "dtype must be float32 or int8"
         arr = self.empty(shape, dtype)
         arr.fill(fill_value)
         return arr
@@ -66,24 +69,23 @@ def cuda():
         return BackendDevice("cuda", None)
 
 
-def cpu_numpy():
+def cpu_numpy(dtype="float32"):
     """Return numpy device"""
     return BackendDevice("cpu_numpy", ndarray_backend_numpy)
 
 
-def cpu():
+def cpu(dtype="float32"):
     """Return cpu device"""
-    return BackendDevice("cpu", ndarray_backend_cpu)
+    return BackendDevice("cpu", ndarray_backend_cpu, quant=dtype=="int8")  # Add quant only in cpu backend
 
 
-def default_device():
-    return cpu_numpy()
+def default_device(dtype="float32"):
+    return cpu_numpy(dtype="float32")
 
 
 def all_devices():
     """return a list of all available devices"""
     return [cpu(), cuda(), cpu_numpy()]
-
 
 class NDArray:
     """A generic ND array class that may contain multipe different backends
@@ -97,7 +99,7 @@ class NDArray:
     this can be extended if desired.
     """
 
-    def __init__(self, other, device=None):
+    def __init__(self, other, device=None, dtype="float32"):
         """Create by copying another NDArray, or from numpy"""
         if isinstance(other, NDArray):
             # create a copy of existing NDArray
@@ -114,8 +116,10 @@ class NDArray:
             # see if we can create a numpy array from input
             array = NDArray(np.array(other), device=device)
             self._init(array)
+        self.dtype = dtype
 
     def _init(self, other):
+        self.dtype = other.dtype
         self._shape = other._shape
         self._strides = other._strides
         self._offset = other._offset
@@ -142,13 +146,14 @@ class NDArray:
         array._strides = NDArray.compact_strides(shape) if strides is None else strides
         array._offset = offset
         array._device = device if device is not None else default_device()
+        array.dtype = "float32"
         if handle is None:
             array._handle = array.device.Array(prod(shape))
         else:
             array._handle = handle
         return array
 
-    ### Properies and string representations
+     ### Properies and string representations
     @property
     def shape(self):
         return self._shape
@@ -161,10 +166,10 @@ class NDArray:
     def device(self):
         return self._device
 
-    @property
-    def dtype(self):
-        # only support float32 for now
-        return "float32"
+    # @property
+    # def dtype(self):
+    #     # only support float32 for now
+    #     return self.dtype
 
     @property
     def ndim(self):
@@ -668,8 +673,8 @@ class NDArray:
 def array(a, dtype="float32", device=None):
     """Convenience methods to match numpy a bit more closely."""
     dtype = "float32" if dtype is None else dtype
-    assert dtype == "float32"
-    return NDArray(a, device=device)
+    assert dtype in ("float32", "int8"), "Only support float32 and int8"
+    return NDArray(a, device=device, dtype=dtype)
 
 
 def empty(shape, dtype="float32", device=None):
