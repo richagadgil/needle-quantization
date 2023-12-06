@@ -123,7 +123,7 @@ def test_quantization(dataloader, model):
         total_correct_quantized += np.sum(check_values) 
         total_values += len(check_values)
 
-    print(total_correct_quantized/total_values)
+        print(total_correct_quantized/total_values)
 
     return total_correct_quantized/total_values
 
@@ -190,4 +190,4 @@ def train_mnist(
 
 
 if __name__ == "__main__":
-    train_mnist(250, 2, ndl.optim.SGD, 0.001, 0.01, 100, "./data")
+    train_mnist(250, 3, ndl.optim.SGD, 0.001, 0.01, 100, "./data")

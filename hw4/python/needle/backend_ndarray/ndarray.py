@@ -670,6 +670,26 @@ class NDArray:
         return padded_array
         ### END YOUR SOLUTION
 
+    def clip(self, min_val, max_val):
+        """Clip (limit) the values in the array.
+
+        Args:
+            min_val (float): Minimum value. If an element is less than min_val, it will be replaced with min_val.
+            max_val (float): Maximum value. If an element is greater than max_val, it will be replaced with max_val.
+
+        Returns:
+            NDArray: A new NDArray with the clipped values.
+        """
+        out = NDArray.make(self.shape, device=self.device)
+
+        # Loop over all elements in the array and apply clipping
+        for idx in np.ndindex(self.shape):
+            value = self[idx]
+            clipped_value = maximum(-maximum(-value, -max_val), min_val) #max(min(value, max_val), min_val)
+            out[idx] = clipped_value
+
+        return out
+
 def array(a, dtype="float32", device=None):
     """Convenience methods to match numpy a bit more closely."""
     dtype = "float32" if dtype is None else dtype
@@ -714,6 +734,10 @@ def tanh(a):
 def sum(a, axis=None, keepdims=False):
     return a.sum(axis=axis, keepdims=keepdims)
 
-
 def flip(a, axes):
     return a.flip(axes)
+
+def clip(a, min_val, max_val):
+    return a.clip(min_val, max_val)
+
+

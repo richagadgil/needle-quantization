@@ -727,3 +727,25 @@ class Conv(TensorOp):
 
 def conv(a, b, stride=1, padding=1):
     return Conv(stride, padding)(a, b)
+
+
+class Clip(TensorOp):
+    def __init__(self, min_val, max_val):
+        self.min_val = min_val
+        self.max_val = max_val
+
+    def compute(self, a):
+        # Clip the values in tensor 'a' to be within the range [min_val, max_val]
+        return array_api.clip(a, self.min_val, self.max_val)
+
+    def gradient(self, out_grad, node):
+        # The gradient of the clip operation is 1 for values within the range
+        # and 0 for values outside the range. It acts like a mask.
+        a = node.inputs[0].realize_cached_data()
+        grad_mask = (a >= self.min_val) & (a <= self.max_val)
+        return out_grad * grad_mask
+
+
+def clip(a, min_val, max_val):
+    return Clip(min_val, max_val)(a)
+
