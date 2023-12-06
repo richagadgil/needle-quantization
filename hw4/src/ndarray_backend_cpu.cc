@@ -899,7 +899,7 @@ PYBIND11_MODULE(ndarray_backend_cpu, m) {
     std::memcpy(out->ptr, a.request().ptr, out->size * ELEM_SIZE);
   });
 
-  m.def("from_numpy_quant", [](py::array_t<scalar_t> a, AlignedArray_quant* out) {
+  m.def("from_numpy_quant", [](py::array_t<quant_t> a, AlignedArray_quant* out) {
     std::memcpy(out->ptr, a.request().ptr, out->size * QUANT_SIZE);
   });
 
