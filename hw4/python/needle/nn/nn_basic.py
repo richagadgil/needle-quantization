@@ -82,13 +82,13 @@ class Identity(Module):
 
 class Linear(Module):
     def __init__(
-        self, in_features, out_features, bias=True, device=None, dtype="float32", quantization_profile="signed_eight", running_max=False
+        self, in_features, out_features, bias=True, device=None, dtype="float32", quantization=True, 
     ):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
 
-        self.quantize_input=False
+        self.quantize_input = False
 
         ### BEGIN YOUR SOLUTION
         self.weight = Parameter(init.kaiming_uniform(self.in_features, self.out_features), dtype=dtype, device=device)
@@ -97,19 +97,23 @@ class Linear(Module):
         else:
           self.bias = None
 
-        self.W_B = None
-        self.W_A = None
+        if self.quantization:
+          self.W_B = None
+          self.W_A = None
 
-        self.X_A = None
-        self.X_B = None
+          self.X_A = None
+          self.X_B = None
 
-        self.y_A = None
-        self.y_B = None
+          self.y_A = None
+          self.y_B = None
 
-        self.b_A = None
-        self.b_B = None
+          self.b_A = None
+          self.b_B = None
 
         ### END YOUR SOLUTION
+
+
+    #### VIRTUAL QUANTIZATION HELPER ###############################################################################################
 
     def generate_quantization_constants(self, alpha, beta):
         beta_q = 127
@@ -119,7 +123,6 @@ class Linear(Module):
         Z = int((beta * alpha_q - alpha * beta_q) / (beta - alpha))
 
         return S, Z
-
 
     def quantization(self, x, s, z):
         beta_q = 127
@@ -139,45 +142,61 @@ class Linear(Module):
 
         return x
 
+    # def quantization_matrix_multiplication_int8(self, X_q, W_q, b_q, s_X, z_X, s_W, z_W,
+    #                                         s_b, z_b, s_Y, z_Y):
 
-    def quantization_matrix_multiplication_int8(self, X_q, W_q, b_q, s_X, z_X, s_W, z_W,
-                                            s_b, z_b, s_Y, z_Y):
+    #     p = W_q.shape[0]
 
-        p = W_q.shape[0]
+    #     # Y_q_simulated is FP32
+    #     Y_q_simulated = (z_Y + (s_b / s_Y * (b_q.astype(np.int32) - z_b)) + (
+    #         (s_X * s_W / s_Y) *
+    #         (np.matmul(X_q.astype(np.int32), W_q.astype(np.int32)) -
+    #         z_W * np.sum(X_q.astype(np.int32), axis=1, keepdims=True) - z_X *
+    #         np.sum(W_q.astype(np.int32), axis=0, keepdims=True) + p * z_X * z_W)))
 
-        # Y_q_simulated is FP32
-        Y_q_simulated = (z_Y + (s_b / s_Y * (b_q.astype(np.int32) - z_b)) + (
-            (s_X * s_W / s_Y) *
-            (np.matmul(X_q.astype(np.int32), W_q.astype(np.int32)) -
-            z_W * np.sum(X_q.astype(np.int32), axis=1, keepdims=True) - z_X *
-            np.sum(W_q.astype(np.int32), axis=0, keepdims=True) + p * z_X * z_W)))
+    #     Y_q_simulated = np.round(Y_q_simulated, decimals=0)
+    #     Y_q_simulated = np.clip(Y_q_simulated, a_min=-128, a_max=127)
+    #     Y_q_simulated = Y_q_simulated.astype(np.int8)
 
-        Y_q_simulated = np.round(Y_q_simulated, decimals=0)
-        Y_q_simulated = np.clip(Y_q_simulated, a_min=-128, a_max=127)
-        Y_q_simulated = Y_q_simulated.astype(np.int8)
+    #     return Y_q_simulated
 
-        return Y_q_simulated
+     #### VIRTUAL QUANTIZATION ###############################################################################################
+
+    def affine_quantization(B, a, value):
+        B_q = 127
+        a_q = -128
+
+        S = (B - a) / (B_q - a_q)  # (B - a) / (B_q - A_q) 
+        zero_point = -np.round((a * B_q - B * a_q) / (B - a)) # (aB_q - Ba_q) / (B - a)
+        quantized_value = np.round(value / S + zero_point)  # round(r / S + Z)
+        quantized_value[quantized_value > B_q] = B_q
+        quantized_value[quantized_value < a_q] = a_q
+        return quantized_value
 
 
     def forward(self, X: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
 
-        if self.quantize_input:
+        if self.quantize_input and self.quantization:
+
+          ### HWIJEEN -- Actual Quantization #############################################################################
+
+          import pdb; pdb.set_trace()
           
-          s_X, z_X = self.generate_quantization_constants(self.X_A, self.X_B)
-          s_W, z_W = self.generate_quantization_constants(self.W_A, self.W_B)
-          s_Y, z_Y = self.generate_quantization_constants(self.y_A, self.y_B)
-          s_b, z_b = self.generate_quantization_constants(self.b_A, self.b_B)
+          #### VIRTUAL QUANTIZATION ###############################################################################################
+          # s_X, z_X = self.generate_quantization_constants(self.X_A, self.X_B)
+          # s_W, z_W = self.generate_quantization_constants(self.W_A, self.W_B)
+          # s_Y, z_Y = self.generate_quantization_constants(self.y_A, self.y_B)
+          # s_b, z_b = self.generate_quantization_constants(self.b_A, self.b_B)
 
-          X_q = self.quantization(X.detach().numpy(), s_X, z_X)
-          W_q = self.quantization(self.weight.detach().numpy(), s_W, z_W)
-          b_q = self.quantization(self.bias.detach().numpy(), s_b, z_b)
+          # X_q = self.quantization(X.detach().numpy(), s_X, z_X)
+          # W_q = self.quantization(self.weight.detach().numpy(), s_W, z_W)
+          # b_q = self.quantization(self.bias.detach().numpy(), s_b, z_b)
 
-          y_q = self.quantization_matrix_multiplication_int8(X_q, W_q, b_q, s_X, z_X, s_W, z_W,
-                                            s_b, z_b, s_Y, z_Y)
+          # y_q = self.quantization_matrix_multiplication_int8(X_q, W_q, b_q, s_X, z_X, s_W, z_W,
+          #                                   s_b, z_b, s_Y, z_Y)
 
-          y = Tensor(self.dequantization(y_q, s_Y, z_Y), device=ndl.cpu(), dtype='float32')
-
+          # y = Tensor(self.dequantization(y_q, s_Y, z_Y), device=ndl.cpu(), dtype='float32')
           
         else:
           

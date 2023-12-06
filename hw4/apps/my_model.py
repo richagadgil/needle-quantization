@@ -27,20 +27,12 @@ def NN(
 ):
     ### BEGIN YOUR SOLUTION
     layers =  nn.Sequential(
-        # nn.Linear(dim, hidden_dim, device=nd.cpu()),
-        # nn.Linear(hidden_dim, num_classes, device=nd.cpu())
-
-        #nn.Linear(dim, hidden_dim, quantization=True, device=nd.cpu('int8'), dtype='int8'), 
-        nn.Linear(dim, hidden_dim, device=nd.cpu()), 
+        nn.Linear(dim, hidden_dim, device=nd.cpu(), quantization=True), 
         nn.ReLU(), 
-        #nn.Linear(hidden_dim, hidden_dim//2, quantization=True,  device=nd.cpu('int8'), dtype='int8'),
-        nn.Linear(hidden_dim, hidden_dim//2,  device=nd.cpu()),
+        nn.Linear(hidden_dim, hidden_dim//2,  device=nd.cpu(), quantization=True), 
         nn.ReLU(),
-        #nn.Linear(hidden_dim//2, num_classes, quantization=True, device=nd.cpu('int8'), dtype='int8')
-        nn.Linear(hidden_dim//2, num_classes, device=nd.cpu())
+        nn.Linear(hidden_dim//2, num_classes, device=nd.cpu(), quantization=True)
     )
-
-
 
     return layers
     ### END YOUR SOLUTION
@@ -114,11 +106,9 @@ def test_quantization(dataloader, model):
     quantized_model = get_quantized_model(model) # change this model to the quantized version 
 
     quantized_model.eval()
-    # model.eval()
 
     total_values = 0
 
-    # total_correct_regular = 0
     total_correct_quantized = 0
 
     for idx, batch in enumerate(dataloader):
