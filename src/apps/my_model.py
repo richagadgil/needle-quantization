@@ -190,4 +190,4 @@ def train_mnist(
 
 
 if __name__ == "__main__":
-    train_mnist(250, 3, ndl.optim.SGD, 0.001, 0.01, 100, "./data")
+    train_mnist(250, 10, ndl.optim.SGD, 0.001, 0.01, 100, "./data")

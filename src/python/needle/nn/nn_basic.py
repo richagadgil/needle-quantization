@@ -98,7 +98,10 @@ class Linear(Module):
         else:
           self.bias = None
 
+        self.quantization = quantization
+
         if self.quantization:
+
           self.W_B = None
           self.W_A = None
 
@@ -125,15 +128,6 @@ class Linear(Module):
 
         return S, Z
 
-    def quantization(self, x, s, z):
-        beta_q = 127
-        alpha_q = -128
-
-        x_q = np.round(1 / s * x + z, decimals=0)
-        x_q = np.clip(x_q, a_min=alpha_q, a_max=beta_q)
-
-        return x_q.astype(np.int8)
-
     def quantization_tensor(self, x, s, z):
         beta_q = 127
         alpha_q = -128
@@ -144,13 +138,15 @@ class Linear(Module):
         x_q = nd.array(x_q.numpy(), device=nd.cpu(dtype="int8"), dtype="int8")
         return Tensor(x_q, device=ndl.cpu(), dtype='int8')
 
-
     def dequantization(self, x_q, s, z):
 
         # x_q - z might go outside the quantization range.
-        x_q = x_q.astype(np.int32)
-        x = s * (x_q - z)
-        x = x.astype(np.float32)
+
+        #x_q_n = x_q.numpy().astype(np.int32)
+        x_q_32 = Tensor(nd.array(x_q.numpy(), device = ndl.cpu()), device = ndl.cpu())
+
+        #x_n = s * (x_q_n - z).astype(np.float32)
+        x = s * (x_q_32 - z)
 
         return x
 
@@ -159,18 +155,41 @@ class Linear(Module):
 
         p = W_q.shape[0]
 
-        # Y_q_simulated is FP32
-        Y_q_simulated = (z_Y + (s_b / s_Y * (b_q.astype(np.int32) - z_b)) + (
-            (s_X * s_W / s_Y) *
-            (np.matmul(X_q.astype(np.int32), W_q.astype(np.int32)) -
-            z_W * np.sum(X_q.astype(np.int32), axis=1, keepdims=True) - z_X *
-            np.sum(W_q.astype(np.int32), axis=0, keepdims=True) + p * z_X * z_W)))
+        b_q_32 = Tensor(nd.array(b_q.numpy(), device = ndl.cpu()), device = ndl.cpu())
+        W_q_32 = Tensor(nd.array(W_q.numpy(), device = ndl.cpu()), device = ndl.cpu())
+        X_q_32 = Tensor(nd.array(X_q.numpy(), device = ndl.cpu()), device = ndl.cpu())
 
-        Y_q_simulated = np.round(Y_q_simulated, decimals=0)
-        Y_q_simulated = np.clip(Y_q_simulated, a_min=-128, a_max=127)
-        Y_q_simulated = Y_q_simulated.astype(np.int8)
+        A = z_Y
 
-        return Y_q_simulated
+        # Part B: Scaling and shifting of b_q
+        # B_n = (s_b / s_Y) * (b_q.astype(np.int32) - z_b)
+        B = (s_b / s_Y) * (b_q_32 - z_b)
+
+        # Part C: Matrix multiplication of X_q and W_q
+        # C_n = np.matmul(X_q.astype(np.int32), W_q.astype(np.int32))
+        C = ops.matmul(X_q_32, W_q_32)
+
+        # Part D: Adjustments related to X_q
+        # D_n = - z_W * np.sum(X_q.astype(np.int32), axis=1, keepdims=True)
+        D = ops.broadcast_to(- z_W * ops.reshape(ops.summation(X_q_32, axes=1), (X_q_32.shape[0], 1)), C.shape)
+
+        # Part E: Adjustments related to W_q
+        # E_n = - z_X * np.sum(W_q.astype(np.int32), axis=0, keepdims=True)
+        E = ops.broadcast_to(- z_X * ops.reshape(ops.summation(W_q_32, axes=0), (1, W_q_32.shape[1])), C.shape)
+
+        # Part F: Constant term involving z_X and z_W
+        F = p * z_X * z_W
+
+        # Final calculation
+        # Y_q_simulated_n = A + B_n + ((s_X * s_W / s_Y) * (C_n + D_n + E_n + F))
+        Y_q_simulated = A + ops.broadcast_to(B, C.shape) + ((s_X * s_W / s_Y) * (C + D + E + F))
+
+
+        Y_q_simulated = ops.clip(Y_q_simulated, -128, 127)
+        Y_q_simulated = nd.array(Y_q_simulated.numpy(), device=nd.cpu(dtype="int8"), dtype="int8")
+        return Tensor(Y_q_simulated, device=ndl.cpu(), dtype='int8')
+
+
 
      #### VIRTUAL QUANTIZATION ###############################################################################################
 
@@ -194,40 +213,28 @@ class Linear(Module):
         ### BEGIN YOUR SOLUTION
 
         if self.quantize_input and self.quantization:
-
-          ### HWIJEEN -- Actual Quantization #############################################################################
-
-          # _x = np.random.randn(2,3)
-          # x = nd.array(_x, dtype="float32" )
-          # print(f"x: {x}")
-          # x_q = self.test_quantize(x, None, None)
-          # print (f"x_q: {x_q}")
-          # x_q_numpy = np.array(_x+_x, dtype="int8" )
-          # print(f"x_q_numpy: {x_q_numpy}" )
-          # import pdb; pdb.set_trace()
-          # Tensor(x_q, device=ndl.cpu(), dtype='int8')
           
-          #### VIRTUAL QUANTIZATION ###############################################################################################
+          #### QUANTIZATION ###############################################################################################
+
           s_X, z_X = self.generate_quantization_constants(self.X_A, self.X_B)
           s_W, z_W = self.generate_quantization_constants(self.W_A, self.W_B)
           s_Y, z_Y = self.generate_quantization_constants(self.y_A, self.y_B)
           s_b, z_b = self.generate_quantization_constants(self.b_A, self.b_B)
 
           print("quantizing....")
-          X_q = self.quantization_tensor(X, s_X, z_X).numpy()
-          W_q = self.quantization_tensor(self.weight, s_W, z_W).numpy()
-          b_q = self.quantization_tensor(self.bias, s_b, z_b).numpy()
+          X_q = self.quantization_tensor(X, s_X, z_X)#.numpy()
+          W_q = self.quantization_tensor(self.weight, s_W, z_W)#.numpy()
+          b_q = self.quantization_tensor(self.bias, s_b, z_b)#.numpy()
           print("done!")
 
-          # X_q = self.quantization(X.detach().numpy(), s_X, z_X)
-          # W_q = self.quantization(self.weight.detach().numpy(), s_W, z_W)
-          # b_q = self.quantization(self.bias.detach().numpy(), s_b, z_b)
 
           y_q = self.quantization_matrix_multiplication_int8(X_q, W_q, b_q, s_X, z_X, s_W, z_W,
                                             s_b, z_b, s_Y, z_Y)
 
 
           y = Tensor(self.dequantization(y_q, s_Y, z_Y), device=ndl.cpu(), dtype='float32')
+
+          #### QUANTIZATION ###############################################################################################
           
         else:
           
