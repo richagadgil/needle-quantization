@@ -8,7 +8,6 @@ import numpy as np
 import needle as ndl
 from needle import backend_ndarray as nd
 
-
 class Parameter(Tensor):
     """A special kind of tensor that represents parameters."""
 
@@ -114,26 +113,30 @@ class Linear(Module):
           self.b_A = None
           self.b_B = None
 
+          self.beta_q = 127
+          self.alpha_q = -128
+
+          self.W_q = None
+          self.b_q = None
+          self.s_W, self.z_W = None, None
+          self.s_b, self.z_b = None, None
+
         ### END YOUR SOLUTION
 
 
     #### VIRTUAL QUANTIZATION HELPER ###############################################################################################
 
     def generate_quantization_constants(self, alpha, beta):
-        beta_q = 127
-        alpha_q = -128
 
-        S = (beta - alpha) / (beta_q - alpha_q)
-        Z = int((beta * alpha_q - alpha * beta_q) / (beta - alpha))
+        S = (beta - alpha) / (self.beta_q - self.alpha_q)
+        Z = int((beta * self.alpha_q - alpha * self.beta_q) / (beta - alpha))
 
         return S, Z
 
     def quantization_tensor(self, x, s, z):
-        beta_q = 127
-        alpha_q = -128
 
         x_q = 1 / s * x + z
-        x_q = ops.clip(x_q, alpha_q, beta_q)
+        x_q = ops.clip(x_q, self.alpha_q, self.beta_q)
 
         x_q = nd.array(x_q.numpy(), device=nd.cpu(dtype="int8"), dtype="int8")
         return Tensor(x_q, device=ndl.cpu(), dtype='int8')
@@ -152,6 +155,9 @@ class Linear(Module):
 
     def quantization_matrix_multiplication_int8(self, X_q, W_q, b_q, s_X, z_X, s_W, z_W,
                                             s_b, z_b, s_Y, z_Y):
+
+
+
 
         p = W_q.shape[0]
 
@@ -185,29 +191,11 @@ class Linear(Module):
         Y_q_simulated = A + ops.broadcast_to(B, C.shape) + ((s_X * s_W / s_Y) * (C + D + E + F))
 
 
-        Y_q_simulated = ops.clip(Y_q_simulated, -128, 127)
+        Y_q_simulated = ops.clip(Y_q_simulated, self.alpha_q, self.beta_q)
         Y_q_simulated = nd.array(Y_q_simulated.numpy(), device=nd.cpu(dtype="int8"), dtype="int8")
         return Tensor(Y_q_simulated, device=ndl.cpu(), dtype='int8')
 
 
-
-     #### VIRTUAL QUANTIZATION ###############################################################################################
-
-    def affine_quantization(B, a, value):
-        B_q = 127
-        a_q = -128
-
-        S = (B - a) / (B_q - a_q)  # (B - a) / (B_q - A_q) 
-        zero_point = -np.round((a * B_q - B * a_q) / (B - a)) # (aB_q - Ba_q) / (B - a)
-        quantized_value = np.round(value / S + zero_point)  # round(r / S + Z)
-        quantized_value[quantized_value > B_q] = B_q
-        quantized_value[quantized_value < a_q] = a_q
-        return quantized_value
-        
-
-    def test_quantize(self, x, S, Z):
-        x_q = x + x
-        return nd.array(x_q, device=nd. cpu(dtype="int8"), dtype="int8" )
 
     def forward(self, X: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
@@ -216,20 +204,16 @@ class Linear(Module):
           
           #### QUANTIZATION ###############################################################################################
 
+
           s_X, z_X = self.generate_quantization_constants(self.X_A, self.X_B)
-          s_W, z_W = self.generate_quantization_constants(self.W_A, self.W_B)
           s_Y, z_Y = self.generate_quantization_constants(self.y_A, self.y_B)
-          s_b, z_b = self.generate_quantization_constants(self.b_A, self.b_B)
+          
 
-          print("quantizing....")
-          X_q = self.quantization_tensor(X, s_X, z_X)#.numpy()
-          W_q = self.quantization_tensor(self.weight, s_W, z_W)#.numpy()
-          b_q = self.quantization_tensor(self.bias, s_b, z_b)#.numpy()
-          print("done!")
+          X_q = self.quantization_tensor(X, s_X, z_X)
 
 
-          y_q = self.quantization_matrix_multiplication_int8(X_q, W_q, b_q, s_X, z_X, s_W, z_W,
-                                            s_b, z_b, s_Y, z_Y)
+          y_q = self.quantization_matrix_multiplication_int8(X_q, self.W_q, self.b_q, s_X, z_X, self.s_W, self.z_W,
+                                            self.s_b, self.z_b, s_Y, z_Y)
 
 
           y = Tensor(self.dequantization(y_q, s_Y, z_Y), device=ndl.cpu(), dtype='float32')
@@ -237,7 +221,6 @@ class Linear(Module):
           #### QUANTIZATION ###############################################################################################
           
         else:
-          
           
           y = X @ self.weight
 
@@ -261,6 +244,17 @@ class Linear(Module):
     def quantize(self):
 
         self.quantize_input = True
+
+        self.s_W, self.z_W = self.generate_quantization_constants(self.W_A, self.W_B)
+        self.s_b, self.z_b = self.generate_quantization_constants(self.b_A, self.b_B)
+
+        self.W_q = self.quantization_tensor(self.weight, self.s_W, self.z_W)
+        self.b_q = self.quantization_tensor(self.bias, self.s_b, self.z_b)
+        
+        del self.weight
+        del self.bias
+
+
 
 
 
